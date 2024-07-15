@@ -90,7 +90,22 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
--- Set to true if you have a Nerd Font installed and selected in the terminal
+-- Enable folding
+vim.o.foldcolumn = '1' -- '0' is not bad
+vim.o.foldlevel = 99 -- Using ufo provider need a large value, feel free to decrease the value
+vim.o.foldlevelstart = 99
+vim.o.foldenable = true
+
+vim.opt.foldmethod = 'expr'
+vim.opt.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+capabilities.textDocument.foldingRange = {
+  dynamicRegistration = false,
+  lineFoldingOnly = true,
+}
+
+-- Set to true if you have a Nerd Font installed
 vim.g.have_nerd_font = false
 
 -- [[ Setting options ]]
@@ -497,7 +512,7 @@ require('lazy').setup({
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
-          map('<leader>ca', vim.lsp.buf.code_action, '[C]ode [A]ction')
+          map('<leader>x', vim.lsp.buf.code_action, '[X]Code Actions')
 
           -- Opens a popup that displays documentation about the word under your cursor
           --  See `:help K` for why this keymap.
@@ -565,7 +580,7 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {},
         -- gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
@@ -576,8 +591,8 @@ require('lazy').setup({
         --
         -- But for many setups, the LSP (`tsserver`) will work just fine
         tsserver = {},
-        --
-
+        cmake = {},
+        gopls = {},
         lua_ls = {
           -- cmd = {...},
           -- filetypes = { ...},
@@ -644,7 +659,8 @@ require('lazy').setup({
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
+        -- local disable_filetypes = { c = true, cpp = true, cs = true }
+        local disable_filetypes = {}
         return {
           timeout_ms = 500,
           lsp_fallback = not disable_filetypes[vim.bo[bufnr].filetype],
@@ -652,6 +668,9 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        c = { 'astyle' },
+        csharp = { 'astyle' },
+        cpp = { 'astyle' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
@@ -700,6 +719,15 @@ require('lazy').setup({
     },
     config = function()
       -- See `:help cmp`
+      local has_words_before = function()
+        local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+        if col ~= 0 then
+          return false
+        end
+        local character = vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col)
+        return character:match '%a' ~= nil
+      end
+
       local cmp = require 'cmp'
       local luasnip = require 'luasnip'
       luasnip.config.setup {}
@@ -717,6 +745,15 @@ require('lazy').setup({
         --
         -- No, but seriously. Please read `:help ins-completion`, it is really good!
         mapping = cmp.mapping.preset.insert {
+          ['<Return>'] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.confirm { select = true }
+            --elseif has_words_before() then
+            --  cmp.select_next_item()
+            else
+              fallback()
+            end
+          end, { 'i', 's' }),
           -- Select the [n]ext item
           ['<C-n>'] = cmp.mapping.select_next_item(),
           -- Select the [p]revious item
