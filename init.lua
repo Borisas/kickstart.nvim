@@ -507,6 +507,7 @@ require('lazy').setup({
             '%.eot',
             '%.gif',
             '%.png',
+            '%.webp',
           },
         },
         extensions = {
