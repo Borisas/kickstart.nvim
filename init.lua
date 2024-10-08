@@ -101,7 +101,7 @@ vim.o.foldenable = true
 
 vim.opt.foldmethod = 'expr'
 vim.opt.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
-vim.opt.autochdir = true
+vim.opt.autochdir = false
 
 vim.opt.termguicolors = true
 
@@ -278,6 +278,9 @@ require('lazy').setup({
     config = function()
       require('nvim-tree').setup {
         sort_by = 'case_sensitive',
+        update_focused_file = { 
+          enable = true 
+        },
         view = {
           width = 30,
         },
@@ -440,17 +443,13 @@ require('lazy').setup({
     branch = '0.1.x',
     dependencies = {
       'nvim-lua/plenary.nvim',
-      { -- If encountering errors, see telescope-fzf-native README for installation instructions
+      {
         'nvim-telescope/telescope-fzf-native.nvim',
-
-        -- `build` is used to run some command when the plugin is installed/updated.
-        -- This is only run then, not every time Neovim starts up.
-        build = 'make',
-
-        -- `cond` is a condition used to determine whether this plugin should be
-        -- installed and loaded.
+        -- Add this line to specify the plugin
+        name = 'telescope-fzf-native',
+        build = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release',
         cond = function()
-          return vim.fn.executable 'make' == 1
+          return vim.fn.executable 'cmake' == 1
         end,
       },
       { 'nvim-telescope/telescope-ui-select.nvim' },
@@ -528,8 +527,9 @@ require('lazy').setup({
       }
 
       -- Enable Telescope extensions if they are installed
-      pcall(require('telescope').load_extension, 'fzf')
+      -- pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
+      pcall(require('telescope').load_extension, 'fzf')
 
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
