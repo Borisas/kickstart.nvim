@@ -490,6 +490,26 @@ require('lazy').setup({
         --   },
         -- },
         -- pickers = {}
+        mappings = {
+           i = {
+            ['<CR>'] = function(bufnr)
+              local selection = require('telescope.actions.state').get_selected_entry()
+              require('telescope.actions').close(bufnr)
+              if selection then
+                local current_bufnr = vim.api.nvim_get_current_buf()
+                local selected_bufnr = selection.bufnr
+                
+                -- Check if the selected file is different from the current file
+                if selected_bufnr and selected_bufnr ~= current_bufnr then
+                  vim.cmd('tabnew')
+                  vim.api.nvim_win_set_buf(0, selected_bufnr)
+                elseif selection.filename then
+                  vim.cmd('edit ' .. selection.filename)
+                end
+              end
+            end,
+          },
+        },
         defaults = {
           file_ignore_patterns = {
             'node_modules',
@@ -623,40 +643,102 @@ require('lazy').setup({
       vim.api.nvim_create_autocmd('LspAttach', {
         group = vim.api.nvim_create_augroup('kickstart-lsp-attach', { clear = true }),
         callback = function(event)
-          -- NOTE: Remember that Lua is a real programming language, and as such it is possible
-          -- to define small helper and utility functions so you don't have to repeat yourself.
-          --
-          -- In this case, we create a function that lets us more easily define mappings specific
-          -- for LSP related items. It sets the mode, buffer and description for us each time.
           local map = function(keys, func, desc)
             vim.keymap.set('n', keys, func, { buffer = event.buf, desc = 'LSP: ' .. desc })
           end
 
-          -- Jump to the definition of the word under your cursor.
-          --  This is where a variable was first declared, or where a function is defined, etc.
-          --  To jump back, press <C-t>.
-          map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+          -- Helper function to navigate to a location, handling tabs appropriately
+          local function navigate_to_location(location)
+            if location then
+              local uri = location.uri or location.targetUri
+              local range = location.range or location.targetRange
+              
+              if uri and range then
+                local target_filename = vim.uri_to_fname(uri)
+                local current_file = vim.fn.expand('%:p')
+                
+                if target_filename ~= current_file then
+                  -- Check if the file is already open in another tab
+                  local target_bufnr = vim.fn.bufnr(target_filename)
+                  local found_tab = false
+                  for i = 1, vim.fn.tabpagenr('$') do
+                    local tab_buflist = vim.fn.tabpagebuflist(i)
+                    if vim.tbl_contains(tab_buflist, target_bufnr) then
+                      vim.cmd(i .. 'tabnext')
+                      vim.api.nvim_set_current_buf(target_bufnr)
+                      found_tab = true
+                      break
+                    end
+                  end
+                  
+                  -- If not found in existing tabs, open in a new tab
+                  if not found_tab then
+                    vim.cmd('tabnew ' .. vim.fn.fnameescape(target_filename))
+                  end
+                end
+                
+                -- Set cursor position
+                vim.api.nvim_win_set_cursor(0, {range.start.line + 1, range.start.character})
+              end
+            end
+          end
 
-          -- Find references for the word under your cursor.
-          map('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
+          -- Go to Definition
+          map('gd', function()
+            local params = vim.lsp.util.make_position_params()
+            vim.lsp.buf_request(event.buf, 'textDocument/definition', params, function(err, result)
+              if result and #result > 0 then
+                navigate_to_location(result[1])
+              end
+            end)
+          end, '[G]oto [D]efinition')
 
-          -- Jump to the implementation of the word under your cursor.
-          --  Useful when your language has ways of declaring types without an actual implementation.
-          map('gI', require('telescope.builtin').lsp_implementations, '[G]oto [I]mplementation')
+          -- Go to References
+          map('gr', function()
+            require('telescope.builtin').lsp_references(require('telescope.themes').get_dropdown{
+              show_line = false,
+              fname_width = 80,
+              attach_mappings = function(_, map)
+                map('i', '<CR>', function(prompt_bufnr)
+                  local selection = require('telescope.actions.state').get_selected_entry()
+                  require('telescope.actions').close(prompt_bufnr)
+                  if selection then
+                    navigate_to_location({
+                      uri = selection.filename,
+                      range = {
+                        start = { line = selection.lnum - 1, character = selection.col }
+                      }
+                    })
+                  end
+                end)
+                return true
+              end,
+            })
+          end, '[G]oto [R]eferences')
 
-          -- Jump to the type of the word under your cursor.
-          --  Useful when you're not sure what type a variable is and you want to see
-          --  the definition of its *type*, not where it was *defined*.
-          map('<leader>D', require('telescope.builtin').lsp_type_definitions, 'Type [D]efinition')
+          -- Go to Implementation
+          map('gI', function()
+            local params = vim.lsp.util.make_position_params()
+            vim.lsp.buf_request(event.buf, 'textDocument/implementation', params, function(err, result)
+              if result and #result > 0 then
+                navigate_to_location(result[1])
+              end
+            end)
+          end, '[G]oto [I]mplementation')
 
+          -- Type Definition
+          map('<leader>D', function()
+            local params = vim.lsp.util.make_position_params()
+            vim.lsp.buf_request(event.buf, 'textDocument/typeDefinition', params, function(err, result)
+              if result and #result > 0 then
+                navigate_to_location(result[1])
+              end
+            end)
+          end, 'Type [D]efinition')
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
           map('<leader>ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
-
-          -- Fuzzy find all the symbols in your current workspace.
-          --  Similar to document symbols, except searches over your entire project.
           map('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
-
           -- Rename the variable under your cursor.
           --  Most Language Servers support renaming across files, etc.
           map('<leader>rn', vim.lsp.buf.rename, '[R]e[n]ame')
