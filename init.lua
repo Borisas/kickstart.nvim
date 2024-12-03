@@ -491,6 +491,14 @@ require('lazy').setup({
         -- },
         -- pickers = {}
         defaults = {
+          layout_strategy='vertical',
+          layout_config={
+            vertical = {
+              height = 0.95,
+              preview_height = 0.6,
+              width = 0.85,
+            }
+          },
           file_ignore_patterns = {
             'node_modules',
             '.git',
@@ -806,17 +814,7 @@ require('lazy').setup({
     },
     opts = {
       notify_on_error = false,
-      format_on_save = function(bufnr)
-        -- Disable "format_on_save lsp_fallback" for languages that don't
-        -- have a well standardized coding style. You can add additional
-        -- languages here or re-enable it for the disabled ones.
-        -- local disable_filetypes = { c = true, cpp = true, cs = true }
-        local disable_filetypes = {}
-        return {
-          timeout_ms = 500,
-          lsp_fallback = not disable_filetypes[vim.bo[bufnr].filetype],
-        }
-      end,
+      format_on_save = false,
       formatters_by_ft = {
         lua = { 'stylua' },
         c = { 'astyle' },
