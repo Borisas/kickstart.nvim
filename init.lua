@@ -752,6 +752,8 @@ require('lazy').setup({
         ts_ls = {},
         cmake = {},
         gopls = {},
+        ols = {},
+        kotlin_language_server = {},
         lua_ls = {
           -- cmd = {...},
           -- filetypes = { ...},
